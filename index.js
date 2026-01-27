@@ -45,11 +45,20 @@ app.get('/fast', async (req, res) => {
     const mitiParts = data.miti.split(' ');
     const shortMiti = `${mitiParts[0]} ${mitiParts[1]}`;
 
-    // Formatting tooltip with bold HTML tags and newlines
-    const tooltip = `<b>${data.miti}</b>\n` +
-                    `Tithi: ${data.tithi}\n` +
-                    `Date: ${data.date}\n` +
-                    `Event: ${data.event}`;
+    // Build the tooltip lines dynamically
+    let tooltipLines = [
+        `<b>${data.miti}</b>`,
+        `Tithi: ${data.tithi}`,
+        `Date: ${data.date}`
+    ];
+
+    // Only add Event if it actually has content
+    if (data.event && data.event.length > 0) {
+        tooltipLines.push(`Event: ${data.event}`);
+    }
+
+    // Join with newlines for the final string
+    const tooltip = tooltipLines.join('\n');
 
     res.json({
         text: shortMiti,
