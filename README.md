@@ -1,1 +1,1 @@
-This is timepass repo that i made for my arch calendar
+I made this for my HyDE (Arch BTW) WM.
