@@ -8,54 +8,32 @@ const PORT = 3000;
 
 app.use(cors());
 
-/**
- * Core Scraper Function
- * Targets the highlighted cell with the radial-gradient background
- */
 async function scrapeCalendar() {
     const url = 'https://nepalicalendar.rat32.com/';
     try {
         const { data } = await axios.get(url);
         const $ = cheerio.load(data);
-
-        // 1. Find the month/year header (e.g., "Magh 2082")
-        const monthYear = $('.month-name').first().text().trim();
-
-        // 2. Locate today's cell using the unique radial-gradient style
+        
+        // Find the cell that is highlighted as "Today" via the radial-gradient style
         const todayCell = $('.cells').filter((i, el) => {
             const style = $(el).attr('style') || "";
             return style.includes('radial-gradient');
         });
 
-        if (todayCell.length === 0) return null;
+        // Determine if it's a holiday by checking if the font color in the fest div is red
+        const festFontColor = todayCell.find('#fest font').attr('color');
+        const isHoliday = (festFontColor === 'red' || festFontColor === '#ff0000');
 
-        // 3. Extract data from the specific cell
-        const gatey = todayCell.find('#nday').text().trim();
-        const tithi = todayCell.find('#dashi').text().trim();
-        const engDay = todayCell.find('#eday').text().trim();
-        const eventText = todayCell.find('#fest').text().trim();
-
-        // 4. Determine holiday status based on the 'color' attribute of the font tag inside #fest
-        const festColor = todayCell.find('#fest font').attr('color');
-        const isHoliday = (festColor === 'red' || festColor === '#ff0000');
-
-        // 5. Build the Miti string
-        // We'll also try to find the Day name (Sunday, Monday, etc.)
-        // This is usually the index of the cell (0-6)
-        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-        const cellId = todayCell.attr('id'); // e.g., "Cell1"
-        const cellIdx = parseInt(cellId.replace('Cell', '')) % 7;
-        const dayName = dayNames[cellIdx];
+        // Main container for textual data
+        const container = $('#tym4mob');
 
         return {
-            gatey,
-            monthYear,
-            dayName,
-            tithi,
-            engDay,
-            event: eventText,
-            isHoliday,
-            accent: "#a60000"
+            miti: container.children().eq(0).text().trim(),
+            tithi: container.children().eq(1).text().trim(),
+            date: container.children().eq(3).text().trim(),
+            event: container.children().eq(4).text().trim(),
+            isHoliday: isHoliday,
+            accent: "#a60000" 
         };
     } catch (error) {
         console.error("Scraping error:", error);
@@ -63,59 +41,62 @@ async function scrapeCalendar() {
     }
 }
 
-// --- API Routes ---
+// --- ROUTES ---
 
-/**
- * /fast - Optimized for Rofi tooltips with Pango markup
- */
 app.get('/fast', async (req, res) => {
     const data = await scrapeCalendar();
-    if (!data) return res.status(500).json({ error: "Failed to fetch calendar data" });
+    if (!data) return res.status(500).json({ error: "Failed to fetch data" });
 
-    const color = data.isHoliday ? data.accent : "#33CCFF";
-    const fullMiti = `${data.gatey} ${data.monthYear} ${data.dayName}`;
-    
+    const mitiParts = data.miti.split(' ');
+    const shortMiti = `${mitiParts[0]} ${mitiParts[1]}`;
+
+    const titleColor = data.isHoliday ? data.accent : "#ffffff";
+    const holidayTag = data.isHoliday ? " (Holiday)" : "";
+
     let tooltipLines = [
-        `<span foreground="${color}"><b>${fullMiti}</b></span>`,
+        `<span foreground="${titleColor}"><b>${data.miti}${holidayTag}</b></span>`,
         `Tithi: ${data.tithi}`,
-        `Date: ${data.engDay}`
+        `Date: ${data.date}`
     ];
 
     if (data.event) {
-        tooltipLines.push(`<span foreground="${color}">Event: ${data.event}</span>`);
+        // Adding color to the event line as well if it's a holiday
+        const eventText = data.isHoliday ? `<span foreground="${data.accent}">Event: ${data.event}</span>` : `Event: ${data.event}`;
+        tooltipLines.push(eventText);
     }
 
     res.json({
-        text: `${data.gatey} ${data.monthYear.split(' ')[0]}`, // e.g., "22 Magh"
+        text: shortMiti,
         tooltip: tooltipLines.join('\n'),
         isHoliday: data.isHoliday
     });
 });
 
-/**
- * /detailed - Returns structured JSON for logic processing
- */
 app.get('/detailed', async (req, res) => {
     const data = await scrapeCalendar();
-    if (!data) return res.status(500).json({ error: "Data fetch failed" });
+    if (!data) return res.status(500).json({ error: "Failed to fetch data" });
+
+    const mParts = data.miti.replace(',', '').split(' ');
+    const dParts = data.date.replace(',', '').split(' ');
 
     res.json({
         miti: {
-            gatey: data.gatey,
-            mahina: data.monthYear.split(' ')[0],
-            barsa: data.monthYear.split(' ')[1],
-            baar: data.dayName
+            gatey: mParts[0],
+            mahina: mParts[1],
+            baar: mParts[2],
+            barsa: mParts[3]
+        },
+        date: {
+            month: dParts[0],
+            day: dParts[1],
+            year: dParts[2]
         },
         tithi: data.tithi,
         event: data.event,
-        isHoliday: data.isHoliday,
-        englishDay: data.engDay
+        isHoliday: data.isHoliday
     });
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Patro API active at http://localhost:${PORT}`);
+    console.log(`✅ Patro API running at http://localhost:${PORT}`);
 });
-
-// For Vercel deployment
-module.exports = app;
