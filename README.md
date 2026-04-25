@@ -1,1 +1,1 @@
-I made this for my HyDE (Arch BTW) WM.
+I made this for my arch waybar.
